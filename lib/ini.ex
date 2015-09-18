@@ -17,9 +17,12 @@ defmodule Ini do
       case length(line) do
         x when x == 2 ->
           # This is a new field that isn't a list
-          key = hd(tl(line))
-          output = Dict.put(output, :current, String.to_atom(key))
-          Dict.put(output, String.to_atom(key), %{})
+          key = tl(line)
+          |> hd
+          |> String.to_atom
+
+          {_, output} = get_and_update_in(output[:current], &{&1, &1 = key})
+          {_, output} = get_and_update_in(output[key], &{&1, &1 = %{} })
         x when x > 3 ->
           # This is either a list or a regular value
           key = String.strip(Enum.at(line, 2))
@@ -30,7 +33,7 @@ defmodule Ini do
             key = String.slice(key, 0..-3)
             |> String.to_atom
 
-            if !is_nil(output[output[:current]][:host]) do
+            if !is_nil(output[output[:current]][key]) do
               {_, output} = get_and_update_in(output[output[:current]][key], &{&1, &1 ++ [value] })
             else
               {_, output} = get_and_update_in(output[output[:current]][key], &{&1, &1 = [value] })
@@ -38,12 +41,19 @@ defmodule Ini do
           else
             # This isn't an array it's just a normal key
             key = String.to_atom(key)
-            {_, output} = get_and_update_in(output[output[:current]][key], &{&1, &1 = value})
+
+            # if there is no current we just pump out key value pairs
+            if is_nil(output[:current]) do
+              {_, output} = get_and_update_in(output[key], &{&1, &1 = value})
+            else
+              {_, output} = get_and_update_in(output[output[:current]][key], &{&1, &1 = value})
+            end
           end
-          output
         _ ->
           output
       end
+      output
     end
+    Map.delete(output, :current)
   end
 end
